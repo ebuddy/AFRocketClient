@@ -68,7 +68,7 @@ static NSDictionary * AFServerSentEventFieldsFromData(NSData *data, NSError * __
 @implementation AFServerSentEvent
 
 + (instancetype)eventWithFields:(NSDictionary *)fields {
-    if (!fields) {
+    if (!fields.count) {
         return nil;
     }
 
