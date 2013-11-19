@@ -64,6 +64,11 @@
  */
 @property (readonly, nonatomic, strong) AFServerSentEvent *lastEvent;
 
+/**
+ All received data from the server
+ */
+@property (readonly, nonatomic, strong) NSData *receivedData;
+
 ///-------------------------------
 /// @name Getting Connection State
 ///-------------------------------

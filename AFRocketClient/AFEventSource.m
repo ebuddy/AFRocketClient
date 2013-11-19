@@ -192,6 +192,10 @@ typedef NS_ENUM(NSUInteger, AFEventSourceState) {
     return self.requestOperation.response;
 }
 
+- (NSData *)receivedData {
+    return [self.requestOperation.outputStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
+}
+
 - (BOOL)open:(NSError * __autoreleasing *)error {
     if ([self isOpen]) {
         if (error) {
