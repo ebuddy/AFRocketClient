@@ -306,12 +306,11 @@ typedef NS_ENUM(NSUInteger, AFEventSourceState) {
                     if ([self.delegate respondsToSelector:@selector(eventSource:didReceiveMessage:)]) {
                         [self.delegate eventSource:self didReceiveMessage:event];
                     }
-
-                    for (AFServerSentEventBlock block in [self.listenersKeyedByEvent objectForKey:event.event]) {
+                    [[self.listenersKeyedByEvent objectForKey:event.event] enumerateKeysAndObjectsUsingBlock:^(id key, AFServerSentEventBlock block, BOOL *stop) {
                         if (block) {
                             block(event);
                         }
-                    }
+                    }];
                 }
             }
             break;
