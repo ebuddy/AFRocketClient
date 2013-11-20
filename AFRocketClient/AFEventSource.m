@@ -155,6 +155,8 @@ typedef NS_ENUM(NSUInteger, AFEventSourceState) {
     AFEventSourceClosed = 2,
 };
 
+NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
+
 @interface AFEventSource () <NSStreamDelegate>
 @property (readwrite, nonatomic, strong) AFHTTPRequestOperation *requestOperation;
 @property (readwrite, nonatomic, assign) AFEventSourceState state;
@@ -197,6 +199,7 @@ typedef NS_ENUM(NSUInteger, AFEventSourceState) {
         }
     }
 
+    self.retryInterval = kAFEventSourceDefaultRetryInterval;
     return self;
 }
 
@@ -243,11 +246,13 @@ typedef NS_ENUM(NSUInteger, AFEventSourceState) {
         if ([self.delegate respondsToSelector:@selector(eventSourceDidClose:)]) {
             [self.delegate eventSourceDidClose:self];
         }
+        [self reconnectAfterRetryInterval];
     } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
         self.state = AFEventSourceClosed;
         if ([self.delegate respondsToSelector:@selector(eventSource:didFailWithError:)]) {
             [self.delegate eventSource:self didFailWithError:error];
         }
+        [self reconnectAfterRetryInterval];
     }];
     
     [self.requestOperation start];
@@ -309,6 +314,15 @@ typedef NS_ENUM(NSUInteger, AFEventSourceState) {
 
 - (void)removeAllListenersForEvent:(NSString *)event {
     [self.listenersKeyedByEvent removeObjectForKey:event];
+}
+
+- (void)reconnectAfterRetryInterval {
+    dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.retryInterval * NSEC_PER_SEC));
+    dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
+        if(self.state == AFEventSourceClosed){
+            [self open:nil];
+        }
+    });
 }
 
 #pragma mark - NSStreamDelegate
