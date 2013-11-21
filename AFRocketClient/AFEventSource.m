@@ -234,6 +234,7 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
 
     [self.lock lock];
     self.state = AFEventSourceConnecting;
+    self.offset = 0;
 
     self.requestOperation = [[AFHTTPRequestOperation alloc] initWithRequest:self.request];
     self.requestOperation.responseSerializer = [AFServerSentEventResponseSerializer serializer];
@@ -242,13 +243,13 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
     self.requestOperation.outputStream = self.outputStream;
 
     [self.requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-        self.state = AFEventSourceClosed;
+        [self close];
         if ([self.delegate respondsToSelector:@selector(eventSourceDidClose:)]) {
             [self.delegate eventSourceDidClose:self];
         }
         [self reconnectAfterRetryInterval];
     } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        self.state = AFEventSourceClosed;
+        [self close];
         if ([self.delegate respondsToSelector:@selector(eventSource:didFailWithError:)]) {
             [self.delegate eventSource:self didFailWithError:error];
         }
@@ -272,12 +273,7 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
         return NO;
     }
 
-    [self.lock lock];
-    [self.requestOperation cancel];
-
-    self.state = AFEventSourceClosed;
-    [self.lock unlock];
-
+    [self close];
     return YES;
 }
 
@@ -316,10 +312,23 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
     [self.listenersKeyedByEvent removeObjectForKey:event];
 }
 
+#pragma mark - Private
+
+- (void)close {
+    [self.lock lock];
+    if(![self isClosed]) {
+
+        self.state = AFEventSourceClosed;
+        [self.requestOperation cancel];
+        self.offset = 0;
+    }
+    [self.lock unlock];
+}
+
 - (void)reconnectAfterRetryInterval {
     dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.retryInterval * NSEC_PER_SEC));
     dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
-        if(self.state == AFEventSourceClosed){
+        if(![self isOpen]){
             [self open:nil];
         }
     });
