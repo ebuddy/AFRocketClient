@@ -355,6 +355,10 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
                             [self.delegate eventSource:self didReceiveMessage:event];
                     }
                     for (AFServerSentEvent* event in events) {
+                        if(event.retry>0){
+                            //We divide by zero here as the value is in milliseconds according to spec but NSTimeInterval is in seconds.
+                            self.retryInterval = event.retry/1000;
+                        }
                         [[self.listenersKeyedByEvent objectForKey:event.event] enumerateKeysAndObjectsUsingBlock:^(id key, AFServerSentEventBlock block, BOOL *stop) {
                             if (block) {
                                 block(event);
