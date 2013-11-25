@@ -243,16 +243,12 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
     self.requestOperation.outputStream = self.outputStream;
 
     [self.requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-        [self close];
-        if ([self.delegate respondsToSelector:@selector(eventSourceDidClose:)]) {
-            [self.delegate eventSourceDidClose:self];
-        }
+
+        [self didCloseSuccessfully];
         [self reconnectAfterRetryInterval];
     } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        [self close];
-        if ([self.delegate respondsToSelector:@selector(eventSource:didFailWithError:)]) {
-            [self.delegate eventSource:self didFailWithError:error];
-        }
+
+        [self didCloseWithError:error];
         [self reconnectAfterRetryInterval];
     }];
     
@@ -273,7 +269,7 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
         return NO;
     }
 
-    [self close];
+    [self.requestOperation cancel];
     return YES;
 }
 
@@ -314,17 +310,6 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
 
 #pragma mark - Private
 
-- (void)close {
-    [self.lock lock];
-    if(![self isClosed]) {
-
-        self.state = AFEventSourceClosed;
-        [self.requestOperation cancel];
-        self.offset = 0;
-    }
-    [self.lock unlock];
-}
-
 - (void)reconnectAfterRetryInterval {
     dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.retryInterval * NSEC_PER_SEC));
     dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
@@ -334,10 +319,60 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
     });
 }
 
+#pragma mark - Events
+
+- (void)didOpen {
+    if (![self isOpen]) {
+        [self.lock lock];
+        self.state = AFEventSourceOpen;
+        self.offset = 0;
+        if ([self.delegate respondsToSelector:@selector(eventSourceDidOpen:)]) {
+            [self.delegate eventSourceDidOpen:self];
+        }
+        [self.lock unlock];
+    }
+}
+
+- (void)didCloseWithError:(NSError *)error {
+    if (![self isClosed]) {
+        [self.lock lock];
+        self.state = AFEventSourceClosed;
+        self.offset = 0;
+        if (error.code == NSURLErrorCancelled) {
+            if ([self.delegate respondsToSelector:@selector(eventSourceDidClose:)]) {
+                [self.delegate eventSourceDidClose:self];
+            }
+        } else {
+            if ([self.delegate respondsToSelector:@selector(eventSource:didFailWithError:)]) {
+                [self.delegate eventSource:self didFailWithError:error];
+            }
+        }
+        [self.lock unlock];
+    }
+}
+
+- (void)didCloseSuccessfully {
+    if (![self isClosed]) {
+        [self.lock lock];
+        self.state = AFEventSourceClosed;
+        self.offset = 0;
+        if ([self.delegate respondsToSelector:@selector(eventSourceDidClose:)]) {
+            [self.delegate eventSourceDidClose:self];
+        }
+        [self.lock unlock];
+    }
+}
+
 #pragma mark - NSStreamDelegate
 
 - (void)stream:(NSStream *)stream handleEvent:(NSStreamEvent)eventCode {
     switch (eventCode) {
+
+        case NSStreamEventOpenCompleted: {
+            [self didOpen];
+            break;
+        }
+
         case NSStreamEventHasSpaceAvailable: {
             NSData *data = [stream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
             NSError *error = nil;
