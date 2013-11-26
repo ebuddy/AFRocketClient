@@ -253,8 +253,6 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
     }];
     
     [self.requestOperation start];
-
-    self.state = AFEventSourceOpen;
     [self.lock unlock];
 
     return YES;
