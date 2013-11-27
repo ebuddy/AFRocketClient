@@ -345,6 +345,13 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
                 [self.delegate eventSource:self didFailWithError:error];
             }
         }
+
+        //Reset State
+        [self.outputStream close];
+        self.outputStream.delegate = nil;
+        self.outputStream = nil;
+        self.requestOperation= nil;
+
         [self.lock unlock];
     }
 }
@@ -357,6 +364,13 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
         if ([self.delegate respondsToSelector:@selector(eventSourceDidClose:)]) {
             [self.delegate eventSourceDidClose:self];
         }
+
+        //Reset State
+        [self.outputStream close];
+        self.outputStream.delegate = nil;
+        self.outputStream = nil;
+        self.requestOperation= nil;
+
         [self.lock unlock];
     }
 }
