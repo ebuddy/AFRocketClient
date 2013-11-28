@@ -103,6 +103,11 @@
  */
 @property (nonatomic, assign) NSTimeInterval retryInterval;
 
+/**
+ A name for the event source that can be used for debugging purposes
+ */
+@property (nonatomic, copy) NSString *name;
+
 ///-------------------------------
 /// @name Creating an Event Source
 ///-------------------------------
@@ -124,6 +129,17 @@
  @return An initialized event source object.
  */
 - (instancetype)initWithRequest:(NSURLRequest *)request;
+
+/**
+ Initializes an event source with the specified request and a name.
+
+ @param request The event source request.
+ @param name The event source name.
+
+ @return An initialized event source object.
+ */
+- (instancetype)initWithRequest:(NSURLRequest *)request name :(NSString*)name;
+
 
 ///-------------------------------------
 /// @name Opening / Closing Event Source

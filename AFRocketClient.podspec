@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name     = 'AFRocketClient'
-  s.version  = '1.0.9'
+  s.version  = '1.0.10'
   s.license  = 'MIT'
   s.summary  = 'AFNetworking Client for Server sent events'
   s.homepage = 'https://github.com/AFNetworking/AFRocketClient'

@@ -167,6 +167,8 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
 @property (readwrite, nonatomic, strong) NSOutputStream *outputStream;
 @property (readwrite, nonatomic, assign) NSUInteger offset;
 @property (readwrite, nonatomic, strong) NSRecursiveLock *lock;
+@property (readwrite, nonatomic, assign) BOOL attemptedToClose;
+
 @end
 
 @implementation AFEventSource
@@ -178,12 +180,22 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
     return [self initWithRequest:request];
 }
 
+- (instancetype)initWithRequest:(NSURLRequest *)request name :(NSString*)name{
+    self = [self initWithRequest:request];
+    if(!self){
+        return nil;
+    }
+
+    self.name = name;
+    return self;
+}
+
 - (instancetype)initWithRequest:(NSURLRequest *)request {
     self = [super init];
     if (!self) {
         return nil;
     }
-
+    self.attemptedToClose = NO;
     self.request = request;
 
     self.listenersKeyedByEvent = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsCopyIn valueOptions:NSPointerFunctionsStrongMemory capacity:AFEventSourceListenersCapacity];
@@ -232,6 +244,14 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
         return NO;
     }
 
+    if(self.attemptedToClose){
+        if (error) {
+            *error = [NSError errorWithDomain:AFEventSourceErrorDomain code:0 userInfo:@{ NSLocalizedDescriptionKey: NSLocalizedStringFromTable(@"Event Source Was Closed", @"AFEventSource", nil) }];
+        }
+
+        return NO;
+    }
+
     [self.lock lock];
     self.state = AFEventSourceConnecting;
     self.offset = 0;
@@ -245,11 +265,16 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
     [self.requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
 
         [self didCloseSuccessfully];
-        [self reconnectAfterRetryInterval];
+        if(!self.attemptedToClose){
+            [self reconnectAfterRetryInterval];
+        }
+
     } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
 
         [self didCloseWithError:error];
-        [self reconnectAfterRetryInterval];
+        if(!self.attemptedToClose){
+            [self reconnectAfterRetryInterval];
+        }
     }];
     
     [self.requestOperation start];
@@ -259,6 +284,7 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
 }
 
 - (BOOL)close:(NSError * __autoreleasing *)error {
+    self.attemptedToClose = YES;
     if ([self isClosed]) {
         if (error) {
             *error = [NSError errorWithDomain:AFEventSourceErrorDomain code:0 userInfo:@{ NSLocalizedDescriptionKey: NSLocalizedStringFromTable(@"Event Source Already Closed", @"AFEventSource", nil) }];
@@ -311,7 +337,7 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
 - (void)reconnectAfterRetryInterval {
     dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.retryInterval * NSEC_PER_SEC));
     dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
-        if(![self isOpen]){
+        if(self.isClosed && !self.attemptedToClose){
             [self open:nil];
         }
     });
@@ -349,7 +375,6 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
         //Reset State
         [self.outputStream close];
         self.outputStream.delegate = nil;
-        self.outputStream = nil;
         self.requestOperation= nil;
 
         [self.lock unlock];
@@ -368,11 +393,18 @@ NSTimeInterval const kAFEventSourceDefaultRetryInterval = 10.0;
         //Reset State
         [self.outputStream close];
         self.outputStream.delegate = nil;
-        self.outputStream = nil;
         self.requestOperation= nil;
 
         [self.lock unlock];
     }
+}
+
+-(NSString *)description {
+    if(!self.name){
+        return [super description];
+    }
+
+    return [NSString stringWithFormat:@"<%p:%@>",self,self.name];
 }
 
 #pragma mark - NSStreamDelegate
